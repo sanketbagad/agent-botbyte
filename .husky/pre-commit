@@ -1,0 +1,17 @@
+#!/bin/sh
+echo "🔍 Running pre-commit checks..."
+echo ""
+
+# Run lint-staged
+npm run pre-commit
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ All pre-commit checks passed!"
+    echo "🚀 Proceeding with commit..."
+else
+    echo ""
+    echo "❌ Pre-commit checks failed!"
+    echo "Please fix the issues above before committing."
+    exit 1
+fi

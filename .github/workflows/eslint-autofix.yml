@@ -1,0 +1,99 @@
+name: ESLint Auto-fix
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  eslint-autofix:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint check
+        id: eslint-check
+        run: |
+          echo "🔍 Running ESLint check..."
+          if npm run lint:check; then
+            echo "eslint_passed=true" >> $GITHUB_OUTPUT
+            echo "✅ ESLint check passed - no issues found"
+          else
+            echo "eslint_passed=false" >> $GITHUB_OUTPUT
+            echo "❌ ESLint check failed - issues found"
+            echo ""
+            echo "📝 Issues found:"
+            npm run lint || true
+          fi
+        continue-on-error: true
+
+      - name: Run ESLint auto-fix
+        if: steps.eslint-check.outputs.eslint_passed == 'false'
+        run: |
+          echo "🔧 Running ESLint auto-fix..."
+          npm run lint:fix || true
+          echo "✨ ESLint auto-fix completed"
+
+      - name: Check for changes
+        if: steps.eslint-check.outputs.eslint_passed == 'false'
+        id: verify-changed-files
+        run: |
+          if git diff --exit-code; then
+            echo "changes_exist=false" >> $GITHUB_OUTPUT
+            echo "No changes made by ESLint auto-fix"
+          else
+            echo "changes_exist=true" >> $GITHUB_OUTPUT
+            echo "Changes made by ESLint auto-fix:"
+            git diff --name-only
+          fi
+
+      - name: Commit and push changes
+        if: steps.eslint-check.outputs.eslint_passed == 'false' && steps.verify-changed-files.outputs.changes_exist == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "🔧 Auto-fix ESLint issues
+
+          - Fixed linting issues automatically
+          - Applied ESLint auto-fix rules
+
+          Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          git push
+
+      - name: Run final ESLint check
+        if: steps.verify-changed-files.outputs.changes_exist == 'true'
+        run: |
+          echo "🔍 Running final ESLint check after auto-fix..."
+          if npm run lint:check; then
+            echo "✅ Final ESLint check passed after auto-fix"
+          else
+            echo "⚠️ Some ESLint issues remain that couldn't be auto-fixed"
+            echo "Please review and fix these manually:"
+            npm run lint || true
+            exit 1
+          fi
+
+      - name: Success message
+        if: steps.eslint-check.outputs.eslint_passed == 'true'
+        run: |
+          echo "🎉 ESLint check passed! No issues found in the codebase."
