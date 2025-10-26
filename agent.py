@@ -85,7 +85,7 @@ class BotbyteAgent:
                 )
                 
                 for chunk in stream_response:
-                    if chunk.choices[0].delta.content:
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
                         response_text += content
                         print(content, end="", flush=True)
@@ -97,6 +97,8 @@ class BotbyteAgent:
                     model=self.model,
                     messages=messages
                 )
+                if not response.choices or len(response.choices) == 0:
+                    raise ValueError("No response received from OpenAI API")
                 assistant_message = response.choices[0].message.content
             
             # Add assistant response to history
@@ -104,6 +106,10 @@ class BotbyteAgent:
             
             return assistant_message
             
+        except ValueError as e:
+            error_message = f"Error: {str(e)}"
+            print(error_message)
+            return error_message
         except Exception as e:
             error_message = f"Error communicating with AI: {str(e)}"
             print(error_message)
